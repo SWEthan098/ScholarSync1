@@ -13,7 +13,7 @@ scheduler = AsyncIOScheduler()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    await scrape_and_cache()
+    # Schedule nightly scrape at 2am — skip on startup to avoid blocking boot
     scheduler.add_job(scrape_and_cache, "cron", hour=2, minute=0)
     scheduler.start()
     yield
