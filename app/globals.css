@@ -120,6 +120,103 @@ body {
   --radius-4xl: calc(var(--radius) * 2.6);
 }
 
+/* ── Dark mode overrides ─────────────────────────────────────────────────── */
+.dark body                        { background-color: #0f172a; color: #e2e8f0; }
+.dark .bg-white                   { background-color: #1e293b !important; }
+.dark .bg-gray-50                 { background-color: #0f172a !important; }
+.dark .bg-gray-100                { background-color: #1e293b !important; }
+.dark .border-gray-100            { border-color: #334155 !important; }
+.dark .border-gray-200            { border-color: #475569 !important; }
+.dark .text-gray-800              { color: #f1f5f9 !important; }
+.dark .text-gray-700              { color: #e2e8f0 !important; }
+.dark .text-gray-600              { color: #cbd5e1 !important; }
+.dark .text-gray-500              { color: #94a3b8 !important; }
+.dark .text-gray-400              { color: #64748b !important; }
+.dark input,
+.dark select,
+.dark textarea                    { background-color: #0f172a !important; color: #e2e8f0 !important; border-color: #334155 !important; }
+.dark input::placeholder,
+.dark textarea::placeholder       { color: #475569 !important; }
+.dark .shadow-sm                  { box-shadow: 0 1px 3px rgba(0,0,0,0.5) !important; }
+.dark .hover\:bg-gray-50:hover    { background-color: #334155 !important; }
+.dark .bg-red-50                  { background-color: #2d0a0a !important; }
+.dark .bg-green-50                { background-color: #052e16 !important; }
+.dark .bg-yellow-50               { background-color: #2d1a00 !important; }
+.dark .bg-blue-50,
+.dark [style*="f0f7ff"]           { background-color: #0f2845 !important; }
+.dark .text-red-500               { color: #f87171 !important; }
+.dark .text-red-600               { color: #f87171 !important; }
+.dark .text-green-600             { color: #4ade80 !important; }
+.dark .text-red-700               { color: #fca5a5 !important; }
+.dark .bg-red-100                 { background-color: #450a0a !important; }
+.dark .bg-orange-100              { background-color: #431407 !important; }
+.dark .bg-yellow-100              { background-color: #422006 !important; }
+.dark .bg-gray-800                { background-color: #0f172a !important; }
+.dark .border-dashed              { border-color: #334155 !important; }
+
+/* ── Button hover — more pronounced ─────────────────────────────────────── */
+button,
+a[href] {
+  transition: filter 0.15s ease, transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+button:not(:disabled):hover,
+a[href]:hover {
+  filter: brightness(0.82);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+}
+
+button:not(:disabled):active,
+a[href]:active {
+  transform: translateY(0px);
+  box-shadow: none;
+  filter: brightness(0.75);
+}
+
+/* ── Page transition (View Transitions API) ──────────────────────────────── */
+@view-transition {
+  navigation: auto;
+}
+
+::view-transition-old(root) {
+  animation: page-slide-out 0.3s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
+::view-transition-new(root) {
+  animation: page-slide-in 0.4s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
+@keyframes page-slide-out {
+  from { opacity: 1;   transform: translateX(0)     scale(1); }
+  to   { opacity: 0;   transform: translateX(-60px)  scale(0.95); }
+}
+
+@keyframes page-slide-in {
+  from { opacity: 0;   transform: translateX(80px)   scale(0.95); }
+  to   { opacity: 1;   transform: translateX(0)      scale(1); }
+}
+
+/* ── Tab / client-side route transition ──────────────────────────────────── */
+@keyframes page-enter {
+  from { opacity: 0; transform: translateX(50px) scale(0.97); }
+  to   { opacity: 1; transform: translateX(0)    scale(1);    }
+}
+
+.page-enter {
+  animation: page-enter 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* ── Initial page load fade-in ───────────────────────────────────────────── */
+@keyframes site-enter {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+body {
+  animation: site-enter 0.35s ease;
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;

@@ -16,7 +16,7 @@ export default function Onboarding() {
     setForm({ ...form, [e.target.name]: e.target.value });
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = (e: React.SyntheticEvent<HTMLFormElement>) => {
     e.preventDefault();
     localStorage.setItem("scholar_profile", JSON.stringify(form));
     router.push("/dashboard");
@@ -25,8 +25,8 @@ export default function Onboarding() {
   return (
     <main className="flex min-h-screen items-center justify-center px-6">
       <div className="w-full max-w-md">
-        <h1 className="text-3xl font-bold mb-2" style={{ color: "#012169" }}>
-          Let's set up your profile
+        <h1 className="text-3xl font-bold mb-2" style={{ color: "#004F9F" }}>
+          Let&apos;s set up your profile
         </h1>
         <p className="text-gray-500 mb-8">
           This helps ScholarSync personalize your career and financial recommendations.
@@ -34,7 +34,7 @@ export default function Onboarding() {
 
         <form onSubmit={handleSubmit} className="flex flex-col gap-5">
           <div>
-            <label className="block text-sm font-medium mb-1" style={{ color: "#012169" }}>
+            <label className="block text-sm font-medium mb-1" style={{ color: "#004F9F" }}>
               Full Name
             </label>
             <input
@@ -45,12 +45,11 @@ export default function Onboarding() {
               value={form.name}
               onChange={handleChange}
               className="w-full border border-gray-300 rounded-lg px-4 py-3 text-gray-800 focus:outline-none focus:ring-2"
-              style={{ focusRingColor: "#E31837" }}
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium mb-1" style={{ color: "#012169" }}>
+            <label className="block text-sm font-medium mb-1" style={{ color: "#004F9F" }}>
               Major
             </label>
             <input
@@ -65,7 +64,7 @@ export default function Onboarding() {
           </div>
 
           <div>
-            <label className="block text-sm font-medium mb-1" style={{ color: "#012169" }}>
+            <label className="block text-sm font-medium mb-1" style={{ color: "#004F9F" }}>
               Year in School
             </label>
             <select
@@ -84,7 +83,7 @@ export default function Onboarding() {
           </div>
 
           <div>
-            <label className="block text-sm font-medium mb-1" style={{ color: "#012169" }}>
+            <label className="block text-sm font-medium mb-1" style={{ color: "#004F9F" }}>
               Career Interest
             </label>
             <select
@@ -105,8 +104,8 @@ export default function Onboarding() {
 
           <button
             type="submit"
-            className="w-full text-white font-semibold py-4 rounded-full text-lg hover:opacity-90 transition-opacity mt-2"
-            style={{ backgroundColor: "#E31837" }}
+            className="w-full text-white font-semibold py-4 rounded-lg text-lg hover:opacity-90 transition-opacity mt-2"
+            style={{ backgroundColor: "#FFB81C" }}
           >
             Continue to Dashboard
           </button>
