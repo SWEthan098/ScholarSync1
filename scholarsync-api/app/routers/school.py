@@ -70,3 +70,37 @@ async def get_academics(user_id: str):
         "tuition": tuition[0] if tuition else None,
         "droppable_courses": droppable
     }
+@router.post("/mock-sync/{user_id}")
+async def mock_sync(user_id: str):
+    """
+    Seed mock academic data for a user without Microsoft SSO.
+    Use this for demo purposes.
+    """
+    db = get_db()
+
+    db.table("tuition_data").upsert({
+        "user_id": user_id,
+        "term": "Spring 2025",
+        "total_due": 9500.00,
+        "amount_paid": 3000.00,
+        "aid_applied": 4000.00,
+        "balance_remaining": 2500.00,
+        "due_date": "2025-08-01",
+    }, on_conflict="user_id,term").execute()
+
+    transcript_rows = [
+        {"user_id": user_id, "course_code": "COMP 150", "course_name": "Intro to CS", "grade": "A", "credits": 3.0, "semester": "Fall 2023", "status": "completed"},
+        {"user_id": user_id, "course_code": "COMP 220", "course_name": "Data Structures", "grade": "B+", "credits": 3.0, "semester": "Spring 2024", "status": "completed"},
+        {"user_id": user_id, "course_code": "COMP 310", "course_name": "Algorithms", "grade": "B", "credits": 3.0, "semester": "Fall 2024", "status": "completed"},
+        {"user_id": user_id, "course_code": "COMP 350", "course_name": "Operating Systems", "grade": None, "credits": 3.0, "semester": "Spring 2025", "status": "in_progress"},
+        {"user_id": user_id, "course_code": "COMP 410", "course_name": "Software Engineering", "grade": None, "credits": 3.0, "semester": "Spring 2025", "status": "in_progress"},
+    ]
+    db.table("transcript").upsert(transcript_rows, on_conflict="user_id,course_code,semester").execute()
+
+    schedule_rows = [
+        {"user_id": user_id, "course_code": "COMP 350", "course_name": "Operating Systems", "credits": 3.0, "instructor": "Dr. Johnson", "days": "MWF", "time_start": "09:00", "time_end": "09:50", "location": "McNair 201", "semester": "Spring 2025"},
+        {"user_id": user_id, "course_code": "COMP 410", "course_name": "Software Engineering", "credits": 3.0, "instructor": "Dr. Williams", "days": "TR", "time_start": "11:00", "time_end": "12:15", "location": "McNair 105", "semester": "Spring 2025"},
+    ]
+    db.table("schedule").upsert(schedule_rows, on_conflict="user_id,course_code,semester").execute()
+
+    return {"synced": True, "message": "Mock academic data loaded successfully"}
