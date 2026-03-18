@@ -1,13 +1,34 @@
 import httpx
+import base64
+import os
+import tempfile
 from app.config import settings
 from app.database import get_db
 
 TELLER_BASE = "https://api.teller.io"
 
 
+def _get_cert_files():
+    """Decode base64 certs from env vars and write to temp files."""
+    cert_b64 = os.environ.get("TELLER_CERT_B64")
+    key_b64 = os.environ.get("TELLER_KEY_B64")
+
+    if cert_b64 and key_b64:
+        cert_path = "/tmp/teller_cert.pem"
+        key_path = "/tmp/teller_key.pem"
+        with open(cert_path, "wb") as f:
+            f.write(base64.b64decode(cert_b64))
+        with open(key_path, "wb") as f:
+            f.write(base64.b64decode(key_b64))
+        return cert_path, key_path
+
+    return settings.teller_cert_path, settings.teller_key_path
+
+
 def _client(access_token: str) -> httpx.Client:
+    cert, key = _get_cert_files()
     return httpx.Client(
-        cert=(settings.teller_cert_path, settings.teller_key_path),
+        cert=(cert, key),
         auth=(access_token, ""),
         timeout=15,
     )
