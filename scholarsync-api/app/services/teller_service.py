@@ -15,12 +15,23 @@ def _client(access_token: str) -> httpx.Client:
 
 async def save_enrollment(user_id: str, access_token: str, institution_name: str):
     db = get_db()
-    db.table("bank_connections").upsert({
-        "user_id": user_id,
-        "plaid_access_token": access_token,
-        "plaid_item_id": "teller",
-        "institution_name": institution_name,
-    }, on_conflict="user_id").execute()
+    
+    # Check if connection exists
+    existing = db.table("bank_connections").select("id").eq("user_id", user_id).execute()
+    
+    if existing.data:
+        db.table("bank_connections").update({
+            "plaid_access_token": access_token,
+            "plaid_item_id": "teller",
+            "institution_name": institution_name,
+        }).eq("user_id", user_id).execute()
+    else:
+        db.table("bank_connections").insert({
+            "user_id": user_id,
+            "plaid_access_token": access_token,
+            "plaid_item_id": "teller",
+            "institution_name": institution_name,
+        }).execute()
 
 
 async def get_accounts(user_id: str) -> list:
