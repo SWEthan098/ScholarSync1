@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useAuth } from "@/components/AuthProvider";
 
 interface Profile {
   name: string;
@@ -10,40 +11,21 @@ interface Profile {
   careerInterest: string;
 }
 
-const allTransactions = [
-  { name: "DoorDash", category: "Food", date: "Mar 15, 2026", amount: "-$34.50", income: false, flag: true, flagNote: "Above your $25 daily food budget" },
-  { name: "Scholarship Deposit", category: "Income", date: "Mar 12, 2026", amount: "+$1,500", income: true, flag: false, flagNote: "" },
-  { name: "Amazon", category: "Shopping", date: "Mar 10, 2026", amount: "-$89.99", income: false, flag: false, flagNote: "" },
-  { name: "Internship Payroll", category: "Income", date: "Mar 8, 2026", amount: "+$2,100", income: true, flag: false, flagNote: "" },
-  { name: "Spotify", category: "Subscriptions", date: "Mar 1, 2026", amount: "-$9.99", income: false, flag: false, flagNote: "" },
-];
-
 const opportunities = [
   { title: "Google Generation Scholarship", amount: "$10,000", deadline: "Apr 5", urgent: true },
   { title: "HackNC Hackathon", amount: "$2,500", deadline: "Apr 12", urgent: true },
   { title: "AWS Educate Scholarship", amount: "$4,000", deadline: "May 15", urgent: false },
 ];
 
-const nextSteps = [
+const defaultNextSteps = [
   { label: "Complete your student profile", done: true },
   { label: "Link your bank account via Plaid", done: false },
   { label: "Sync your Aggie Access portal", done: false },
   { label: "Set your first career goal", done: false },
 ];
 
-// Monthly income vs expenses data for the bar chart
-const monthlyData = [
-  { month: "Nov", income: 2100, expenses: 1200 },
-  { month: "Dec", income: 1500, expenses: 980 },
-  { month: "Jan", income: 3600, expenses: 1400 },
-  { month: "Feb", income: 2100, expenses: 1650 },
-  { month: "Mar", income: 3600, expenses: 1134 },
-];
-
 const CHART_HEIGHT = 80;
-const maxVal = Math.max(...monthlyData.flatMap((d) => [d.income, d.expenses]));
-
-const filterChips = ["All", "Income", "Food", "Shopping", "Subscriptions"];
+const filterChips = ["All", "Income", "Food", "Shopping", "Entertainment", "Subscriptions"];
 
 interface Transaction {
   name: string;
@@ -58,20 +40,67 @@ interface Transaction {
 const categories = ["Food", "Shopping", "Transportation", "Entertainment", "Subscriptions", "Other"];
 
 export default function Dashboard() {
+  const { user } = useAuth();
   const [profile, setProfile] = useState<Profile | null>(null);
+  const [nextSteps, setNextSteps] = useState(defaultNextSteps);
   const [txFilter, setTxFilter] = useState("All");
   const [search, setSearch] = useState("");
-  const [transactions, setTransactions] = useState<Transaction[]>(allTransactions);
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [showModal, setShowModal] = useState(false);
   const [modalType, setModalType] = useState<"expense" | "income">("expense");
   const [form, setForm] = useState({ name: "", category: "Food", amount: "" });
+  const [tuitionData, setTuitionData] = useState({ total: 0, paid: 0, aidApplied: 0 });
+  const [totalIncome, setTotalIncome] = useState(0);
+  const [totalExpenses, setTotalExpenses] = useState(0);
 
   useEffect(() => {
     const stored = localStorage.getItem("scholar_profile");
     if (stored) setProfile(JSON.parse(stored));
+    const storedSteps = localStorage.getItem("scholar_next_steps");
+    if (storedSteps) setNextSteps(JSON.parse(storedSteps));
+
+    const key = user?.id ?? "demo";
+    const today = new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+
+    // Load tuition data
+    const savedTuition = localStorage.getItem(`tuition_${key}`);
+    if (savedTuition) setTuitionData(JSON.parse(savedTuition));
+
+    // Load manual entries from finance localStorage and convert to transaction format
+    const savedSpending = localStorage.getItem(`spending_${key}`);
+    const savedIncome = localStorage.getItem(`income_${key}`);
+    const manualTx: Transaction[] = [];
+
+    if (savedSpending) {
+      const spending = JSON.parse(savedSpending);
+      let expTotal = 0;
+      spending.forEach((s: any) => {
+        expTotal += s.amount ?? 0;
+        s.transactions?.forEach((tx: string) => {
+          const match = tx.match(/^(.+)\s\$(.+)$/);
+          if (match) manualTx.push({ name: match[1], category: s.category, date: today, amount: `-$${match[2]}`, income: false, flag: s.flag, flagNote: "" });
+        });
+      });
+      setTotalExpenses(expTotal);
+    }
+
+    if (savedIncome) {
+      const income = JSON.parse(savedIncome);
+      let incTotal = 0;
+      income.forEach((i: any) => {
+        incTotal += i.amount ?? 0;
+        i.transactions?.forEach((tx: string) => {
+          const match = tx.match(/^(.+)\s\$(.+)$/);
+          if (match) manualTx.push({ name: match[1], category: "Income", date: today, amount: `+$${match[2]}`, income: true, flag: false, flagNote: "" });
+        });
+      });
+      setTotalIncome(incTotal);
+    }
+
+    setTransactions(manualTx);
 
     const API = process.env.NEXT_PUBLIC_API_URL;
-    const userId = process.env.NEXT_PUBLIC_DEMO_USER_ID;
+    const userId = user?.id ?? process.env.NEXT_PUBLIC_DEMO_USER_ID;
     if (!API || !userId) return;
 
     fetch(`${API}/bank/finance/${userId}`)
@@ -97,7 +126,7 @@ export default function Dashboard() {
         setTransactions(mapped);
       })
       .catch(() => {});
-  }, []);
+  }, [user?.id]);
 
   const filteredTx = transactions.filter((tx) => {
     const matchesFilter = txFilter === "All" || tx.category === txFilter;
@@ -116,11 +145,37 @@ export default function Dashboard() {
     if (!form.name || !form.amount) return;
     const today = new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
     const isIncome = modalType === "income";
+    const amt = parseFloat(form.amount);
+    const key = user?.id ?? "demo";
+
+    // Save to finance localStorage so finance page stays in sync
+    if (isIncome) {
+      const saved = localStorage.getItem(`income_${key}`);
+      const income = saved ? JSON.parse(saved) : [];
+      const existing = income.find((i: any) => i.category === form.category);
+      const updated = existing
+        ? income.map((i: any) => i.category === form.category
+            ? { ...i, amount: i.amount + amt, transactions: [`${form.name} $${amt.toFixed(2)}`, ...i.transactions] }
+            : i)
+        : [...income, { category: form.category, amount: amt, transactions: [`${form.name} $${amt.toFixed(2)}`] }];
+      localStorage.setItem(`income_${key}`, JSON.stringify(updated));
+    } else {
+      const saved = localStorage.getItem(`spending_${key}`);
+      const spending = saved ? JSON.parse(saved) : [];
+      const existing = spending.find((s: any) => s.category === form.category);
+      const updated = existing
+        ? spending.map((s: any) => s.category === form.category
+            ? { ...s, amount: s.amount + amt, transactions: [`${form.name} $${amt.toFixed(2)}`, ...s.transactions], flag: s.amount + amt > s.budget }
+            : s)
+        : [...spending, { category: form.category, amount: amt, budget: amt * 1.5, flag: false, trend: 0, transactions: [`${form.name} $${amt.toFixed(2)}`] }];
+      localStorage.setItem(`spending_${key}`, JSON.stringify(updated));
+    }
+
     const newTx: Transaction = {
       name: form.name,
       category: isIncome ? "Income" : form.category,
       date: today,
-      amount: `${isIncome ? "+" : "-"}$${parseFloat(form.amount).toFixed(2)}`,
+      amount: `${isIncome ? "+" : "-"}$${amt.toFixed(2)}`,
       income: isIncome,
       flag: false,
       flagNote: "",
@@ -130,8 +185,17 @@ export default function Dashboard() {
     setShowModal(false);
   };
 
+  const toggleStep = (i: number) => {
+    const updated = nextSteps.map((s, idx) => idx === i ? { ...s, done: !s.done } : s);
+    setNextSteps(updated);
+    localStorage.setItem("scholar_next_steps", JSON.stringify(updated));
+  };
+
   const isFreshman = profile?.year === "Freshman";
-  const tuitionPct = 56;
+  const tuitionCovered = tuitionData.paid + tuitionData.aidApplied;
+  const tuitionRemaining = Math.max(tuitionData.total - tuitionCovered, 0);
+  const tuitionPct = tuitionData.total > 0 ? Math.round((tuitionCovered / tuitionData.total) * 100) : 0;
+  const maxVal = Math.max(totalIncome, totalExpenses, 1);
 
   return (
     <div className="max-w-6xl mx-auto">
@@ -230,33 +294,41 @@ export default function Dashboard() {
       {/* Stat cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
 
-        {/* Scholarships — milestone badge */}
+        {/* Net Balance */}
         <div className="bg-white rounded-lg p-5 shadow-sm border border-gray-100">
           <div className="flex items-start justify-between mb-2">
-            <p className="text-xs text-gray-400 font-medium uppercase tracking-wide">Scholarships Secured</p>
-            <span className="text-xs font-bold px-2 py-0.5 rounded-lg" style={{ backgroundColor: "#FFB81C", color: "#004F9F" }}>
-              Milestone
-            </span>
+            <p className="text-xs text-gray-400 font-medium uppercase tracking-wide">Net Balance</p>
+            {totalIncome - totalExpenses >= 0 && totalIncome > 0 && (
+              <span className="text-xs font-bold px-2 py-0.5 rounded-lg" style={{ backgroundColor: "#FFB81C", color: "#004F9F" }}>
+                Positive
+              </span>
+            )}
           </div>
-          <p className="text-2xl font-bold mb-1" style={{ color: "#004F9F" }}>$8,000</p>
-          <p className="text-xs text-gray-400">+$3,000 this semester</p>
+          <p className="text-2xl font-bold mb-1" style={{ color: totalIncome - totalExpenses >= 0 ? "#004F9F" : "#dc2626" }}>
+            {totalIncome === 0 && totalExpenses === 0 ? "—" : `${totalIncome - totalExpenses >= 0 ? "+" : ""}$${Math.abs(totalIncome - totalExpenses).toLocaleString()}`}
+          </p>
+          <p className="text-xs text-gray-400">Income minus expenses</p>
         </div>
 
         {/* Tuition — progress bar */}
         <div className="bg-white rounded-lg p-5 shadow-sm border border-gray-100">
           <p className="text-xs text-gray-400 font-medium uppercase tracking-wide mb-2">Tuition Remaining</p>
-          <p className="text-2xl font-bold mb-2" style={{ color: "#004F9F" }}>$18,000</p>
+          <p className="text-2xl font-bold mb-2" style={{ color: "#004F9F" }}>
+            {tuitionData.total > 0 ? `$${tuitionRemaining.toLocaleString()}` : "—"}
+          </p>
           <div className="w-full bg-gray-100 rounded-full h-2 mb-1">
             <div className="h-2 rounded-full" style={{ width: `${tuitionPct}%`, backgroundColor: "#004F9F" }} />
           </div>
-          <p className="text-xs text-gray-400">{tuitionPct}% covered</p>
+          <p className="text-xs text-gray-400">{tuitionData.total > 0 ? `${tuitionPct}% covered` : "Set up in Finance"}</p>
         </div>
 
-        {/* Internship Income */}
+        {/* Total Income */}
         <div className="bg-white rounded-lg p-5 shadow-sm border border-gray-100">
-          <p className="text-xs text-gray-400 font-medium uppercase tracking-wide mb-2">Internship Income</p>
-          <p className="text-2xl font-bold mb-1" style={{ color: "#004F9F" }}>$6,500</p>
-          <p className="text-xs text-gray-400">From summer 2025</p>
+          <p className="text-xs text-gray-400 font-medium uppercase tracking-wide mb-2">Total Income</p>
+          <p className="text-2xl font-bold mb-1" style={{ color: "#004F9F" }}>
+            {totalIncome > 0 ? `$${totalIncome.toLocaleString()}` : "—"}
+          </p>
+          <p className="text-xs text-gray-400">{totalIncome > 0 ? "Logged this period" : "No income logged yet"}</p>
           <div className="flex gap-2 mt-2">
             <button
               onClick={() => openModal("expense")}
@@ -296,39 +368,43 @@ export default function Dashboard() {
             <h2 className="font-semibold text-base mb-4" style={{ color: "#004F9F" }}>
               Income vs. Expenses
             </h2>
-            <div className="flex items-end gap-3 h-24">
-              {monthlyData.map((d) => (
-                <div key={d.month} className="flex-1 flex flex-col items-center gap-1">
-                  <div className="w-full flex items-end gap-1" style={{ height: `${CHART_HEIGHT}px` }}>
-                    <div
-                      className="flex-1 rounded-sm"
-                      style={{
-                        height: `${(d.income / maxVal) * CHART_HEIGHT}px`,
-                        backgroundColor: "#004F9F",
-                      }}
-                    />
-                    <div
-                      className="flex-1 rounded-sm"
-                      style={{
-                        height: `${(d.expenses / maxVal) * CHART_HEIGHT}px`,
-                        backgroundColor: "#FFB81C",
-                      }}
-                    />
+            {totalIncome === 0 && totalExpenses === 0 ? (
+              <div className="flex flex-col items-center justify-center py-8 gap-2 text-center">
+                <p className="text-2xl">📈</p>
+                <p className="text-sm font-medium text-gray-500">No data yet</p>
+                <p className="text-xs text-gray-400">Log income or expenses in Finance to see your chart.</p>
+              </div>
+            ) : (
+              <>
+                <div className="flex items-end gap-6 px-4">
+                  <div className="flex-1 flex flex-col items-center gap-1">
+                    <div className="w-full flex items-end" style={{ height: `${CHART_HEIGHT}px` }}>
+                      <div
+                        className="w-full rounded-sm"
+                        style={{ height: `${Math.max((totalIncome / maxVal) * CHART_HEIGHT, 4)}px`, backgroundColor: "#004F9F" }}
+                      />
+                    </div>
+                    <p className="text-xs text-gray-400 mt-1">Income</p>
+                    <p className="text-xs font-semibold" style={{ color: "#004F9F" }}>${totalIncome.toLocaleString()}</p>
                   </div>
-                  <p className="text-xs text-gray-400">{d.month}</p>
+                  <div className="flex-1 flex flex-col items-center gap-1">
+                    <div className="w-full flex items-end" style={{ height: `${CHART_HEIGHT}px` }}>
+                      <div
+                        className="w-full rounded-sm"
+                        style={{ height: `${Math.max((totalExpenses / maxVal) * CHART_HEIGHT, 4)}px`, backgroundColor: "#FFB81C" }}
+                      />
+                    </div>
+                    <p className="text-xs text-gray-400 mt-1">Expenses</p>
+                    <p className="text-xs font-semibold" style={{ color: "#FFB81C" }}>${totalExpenses.toLocaleString()}</p>
+                  </div>
                 </div>
-              ))}
-            </div>
-            <div className="flex gap-4 mt-3">
-              <span className="flex items-center gap-1.5 text-xs text-gray-500">
-                <span className="w-3 h-3 rounded-sm inline-block" style={{ backgroundColor: "#004F9F" }} />
-                Income
-              </span>
-              <span className="flex items-center gap-1.5 text-xs text-gray-500">
-                <span className="w-3 h-3 rounded-sm inline-block" style={{ backgroundColor: "#FFB81C" }} />
-                Expenses
-              </span>
-            </div>
+                <div className="flex items-center justify-center mt-4">
+                  <span className={`text-sm font-semibold ${totalIncome - totalExpenses >= 0 ? "text-green-600" : "text-red-500"}`}>
+                    Net: {totalIncome - totalExpenses >= 0 ? "+" : ""}${(totalIncome - totalExpenses).toLocaleString()}
+                  </span>
+                </div>
+              </>
+            )}
           </div>
 
           {/* Recent Transactions */}
@@ -404,7 +480,7 @@ export default function Dashboard() {
               </h2>
               <div className="flex flex-col gap-3">
                 {nextSteps.map((step, i) => (
-                  <div key={i} className="flex items-start gap-3">
+                  <button key={i} onClick={() => toggleStep(i)} className="flex items-start gap-3 text-left w-full">
                     <div
                       className="w-4 h-4 rounded border-2 shrink-0 mt-0.5 flex items-center justify-center"
                       style={step.done ? { backgroundColor: "#004F9F", borderColor: "#004F9F" } : { borderColor: "#d1d5db" }}
@@ -418,7 +494,7 @@ export default function Dashboard() {
                     <p className={`text-sm ${step.done ? "line-through text-gray-400" : "text-gray-700"}`}>
                       {step.label}
                     </p>
-                  </div>
+                  </button>
                 ))}
               </div>
             </div>

@@ -2,23 +2,37 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { supabase } from "@/lib/supabase";
 
 export default function Onboarding() {
   const router = useRouter();
   const [form, setForm] = useState({
     name: "",
+    email: "",
+    password: "",
     major: "",
     year: "",
     careerInterest: "",
   });
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     setForm({ ...form, [e.target.name]: e.target.value });
   };
 
-  const handleSubmit = (e: React.SyntheticEvent<HTMLFormElement>) => {
+  const handleSubmit = async (e: React.SyntheticEvent<HTMLFormElement>) => {
     e.preventDefault();
-    localStorage.setItem("scholar_profile", JSON.stringify(form));
+    setError("");
+    setLoading(true);
+    const { error } = await supabase.auth.signUp({
+      email: form.email,
+      password: form.password,
+    });
+    if (error) { setError(error.message); setLoading(false); return; }
+    const { name, major, year, careerInterest } = form;
+    localStorage.setItem("scholar_profile", JSON.stringify({ name, major, year, careerInterest }));
+    setLoading(false);
     router.push("/dashboard");
   };
 
@@ -32,6 +46,12 @@ export default function Onboarding() {
           This helps ScholarSync personalize your career and financial recommendations.
         </p>
 
+        {error && (
+          <div className="mb-4 px-4 py-3 rounded-lg bg-red-50 border border-red-200 text-red-600 text-sm">
+            {error}
+          </div>
+        )}
+
         <form onSubmit={handleSubmit} className="flex flex-col gap-5">
           <div>
             <label className="block text-sm font-medium mb-1" style={{ color: "#004F9F" }}>
@@ -43,6 +63,37 @@ export default function Onboarding() {
               required
               placeholder="e.g. Jordan Smith"
               value={form.name}
+              onChange={handleChange}
+              className="w-full border border-gray-300 rounded-lg px-4 py-3 text-gray-800 focus:outline-none focus:ring-2"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium mb-1" style={{ color: "#004F9F" }}>
+              Email
+            </label>
+            <input
+              name="email"
+              type="email"
+              required
+              placeholder="you@email.com"
+              value={form.email}
+              onChange={handleChange}
+              className="w-full border border-gray-300 rounded-lg px-4 py-3 text-gray-800 focus:outline-none focus:ring-2"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium mb-1" style={{ color: "#004F9F" }}>
+              Password
+            </label>
+            <input
+              name="password"
+              type="password"
+              required
+              minLength={6}
+              placeholder="••••••••"
+              value={form.password}
               onChange={handleChange}
               className="w-full border border-gray-300 rounded-lg px-4 py-3 text-gray-800 focus:outline-none focus:ring-2"
             />
@@ -104,10 +155,11 @@ export default function Onboarding() {
 
           <button
             type="submit"
-            className="w-full text-white font-semibold py-4 rounded-lg text-lg hover:opacity-90 transition-opacity mt-2"
+            disabled={loading}
+            className="w-full text-white font-semibold py-4 rounded-lg text-lg hover:opacity-90 transition-opacity mt-2 disabled:opacity-60"
             style={{ backgroundColor: "#FFB81C" }}
           >
-            Continue to Dashboard
+            {loading ? "Creating account..." : "Continue to Dashboard"}
           </button>
         </form>
       </div>
