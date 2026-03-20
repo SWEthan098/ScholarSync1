@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useAuth } from "@/components/AuthProvider";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -14,6 +15,7 @@ type ChatSession = {
   id: string;
   title: string;
   date: string;
+  messages: Message[];
 };
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -33,11 +35,6 @@ const STARTER_PROMPTS = [
   "Review my financial situation",
 ];
 
-const MOCK_SESSIONS: ChatSession[] = [
-  { id: "s1", title: "Scholarship Help",    date: "Mar 12" },
-  { id: "s2", title: "Career Path Planning", date: "Mar 8"  },
-  { id: "s3", title: "Financial Planning",   date: "Feb 28" },
-];
 
 function genId() {
   return Math.random().toString(36).slice(2, 9);
@@ -98,6 +95,7 @@ function CopyButton({ text }: { text: string }) {
 // ─── Main page ─────────────────────────────────────────────────────────────────
 
 export default function Voice() {
+  const { user } = useAuth();
   const [messages, setMessages]       = useState<Message[]>([INITIAL_MESSAGE]);
   const [textInput, setTextInput]     = useState("");
   const [recording, setRecording]     = useState(false);
@@ -108,17 +106,22 @@ export default function Voice() {
   const [savedIds, setSavedIds]           = useState<Set<string>>(new Set());
   const [toast, setToast]                 = useState("");
   const [profile, setProfile]             = useState<Record<string, string>>({});
+  const [sessions, setSessions]           = useState<ChatSession[]>([]);
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef   = useRef<Blob[]>([]);
   const messagesEndRef   = useRef<HTMLDivElement>(null);
   const fileInputRef     = useRef<HTMLInputElement>(null);
 
-  // Load profile from localStorage
+  const sessionsKey = `coach_sessions_${user?.id ?? "demo"}`;
+
+  // Load profile and sessions from localStorage
   useEffect(() => {
     const stored = localStorage.getItem("scholar_profile");
     if (stored) setProfile(JSON.parse(stored));
-  }, []);
+    const storedSessions = localStorage.getItem(sessionsKey);
+    if (storedSessions) setSessions(JSON.parse(storedSessions));
+  }, [sessionsKey]);
 
   // Auto-scroll to bottom
   useEffect(() => {
@@ -148,6 +151,17 @@ export default function Voice() {
     setMessages((prev) => [...prev, ...msgs]);
 
   const newChat = () => {
+    const userMessages = messages.filter((m) => m.id !== "init");
+    if (userMessages.length > 0) {
+      const title = userMessages.find((m) => m.role === "user")?.text.slice(0, 40) ?? "Chat";
+      const date = new Date().toLocaleDateString("en-US", { month: "short", day: "numeric" });
+      const session: ChatSession = { id: genId(), title, date, messages };
+      setSessions((prev) => {
+        const updated = [session, ...prev].slice(0, 20);
+        localStorage.setItem(sessionsKey, JSON.stringify(updated));
+        return updated;
+      });
+    }
     setMessages([INITIAL_MESSAGE]);
     setActiveSession(null);
     setUploadedFile(null);
@@ -155,11 +169,7 @@ export default function Voice() {
 
   const loadSession = (s: ChatSession) => {
     setActiveSession(s.id);
-    setMessages([
-      INITIAL_MESSAGE,
-      { id: genId(), role: "user",      text: "Restoring session…" },
-      { id: genId(), role: "assistant", text: `Showing your "${s.title}" session. Connect to the backend to restore the full conversation.` },
-    ]);
+    setMessages(s.messages);
   };
 
   const toggleSave = (id: string) => {
@@ -303,7 +313,7 @@ export default function Voice() {
       {!fullscreen && (
         <div className="max-w-5xl mx-auto flex gap-6">
           {/* Sidebar */}
-          <aside className="w-52 shrink-0 flex flex-col gap-3 pt-1">
+          <aside className="w-52 shrink-0 flex flex-col gap-3 pt-1 overflow-y-auto">
             <button
               onClick={newChat}
               className="w-full text-sm font-semibold py-2.5 rounded-lg text-white transition-opacity hover:opacity-90"
@@ -313,7 +323,8 @@ export default function Voice() {
             </button>
             <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide px-1 mt-1">Recent</p>
             <div className="flex flex-col gap-1">
-              {MOCK_SESSIONS.map((s) => (
+              {sessions.length === 0 && <p className="text-xs text-gray-400 px-1">No saved chats yet.</p>}
+              {sessions.map((s) => (
                 <button
                   key={s.id}
                   onClick={() => loadSession(s)}
@@ -432,8 +443,8 @@ function ChatContent({
 
       {/* Chat window */}
       <div
-        className="bg-white border border-gray-200 rounded-lg p-5 mb-4 overflow-y-auto flex flex-col gap-3 flex-1"
-        style={{ minHeight: "320px", maxHeight: fullscreen ? "calc(100vh - 300px)" : "420px" }}
+        className="bg-white border border-gray-200 rounded-lg p-5 mb-4 flex flex-col gap-3"
+        style={{ height: "560px", overflowY: "auto", outline: "none" }}
       >
         {messages.map((msg) => (
           <div key={msg.id} className={`flex flex-col ${msg.role === "user" ? "items-end" : "items-start"}`}>

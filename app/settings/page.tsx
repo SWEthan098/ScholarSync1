@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useTheme } from "@/components/ThemeProvider";
+import { supabase } from "@/lib/supabase";
 
 interface Profile {
   name: string;
@@ -60,7 +61,8 @@ export default function Settings() {
     localStorage.setItem("scholar_notifications", JSON.stringify(updated));
   };
 
-  const handleDeleteAccount = () => {
+  const handleDeleteAccount = async () => {
+    await supabase.auth.signOut();
     localStorage.clear();
     router.push("/");
   };

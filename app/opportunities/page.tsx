@@ -3,6 +3,7 @@
 import { useState, useMemo, useEffect } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
+import { useAuth } from "@/components/AuthProvider";
 
 const STATUS_OPTIONS = ["Not Started", "In Progress", "Submitted", "Won"] as const;
 type Status = typeof STATUS_OPTIONS[number];
@@ -121,9 +122,247 @@ const MOCK_OPPORTUNITIES: Opportunity[] = [
     matchScore: 90,
     matchReason: "Black STEM student + public service alignment",
   },
+  {
+    id: "uncf-general",
+    title: "UNCF General Scholarship",
+    type: "Scholarship",
+    amount: "$5,000",
+    amountNum: 5000,
+    deadline: "May 10, 2026",
+    deadlineDays: 51,
+    deadlineDay: 10,
+    description: "United Negro College Fund scholarship open to all HBCU undergraduates with demonstrated financial need.",
+    tags: ["HBCU", "UNCF", "Financial Need"],
+    link: "https://uncf.org/scholarships",
+    matchScore: 94,
+    matchReason: "HBCU student + underrepresented",
+  },
+  {
+    id: "mlh-global",
+    title: "MLH Global Hackathon",
+    type: "Hackathon",
+    amount: "$3,000",
+    amountNum: 3000,
+    deadline: "April 18, 2026",
+    deadlineDays: 29,
+    deadlineDay: 18,
+    description: "Major League Hacking's flagship virtual hackathon — build anything in 36 hours.",
+    tags: ["Hackathon", "Remote", "Open Source"],
+    link: "https://mlh.io",
+    matchScore: 83,
+    matchReason: "Software Engineer interest + hackathon experience",
+  },
+  {
+    id: "microsoft-leap",
+    title: "Microsoft LEAP Apprenticeship",
+    type: "Internship",
+    amount: "$25/hr",
+    amountNum: 5000,
+    deadline: "April 30, 2026",
+    deadlineDays: 41,
+    deadlineDay: 30,
+    description: "16-week paid apprenticeship for software engineers from non-traditional backgrounds.",
+    tags: ["Microsoft", "Internship", "Software Engineering"],
+    link: "https://leap.microsoft.com",
+    matchScore: 87,
+    matchReason: "Software Engineer career interest",
+  },
+  {
+    id: "adobe-diversity",
+    title: "Adobe Research Women-in-Technology Scholarship",
+    type: "Scholarship",
+    amount: "$10,000",
+    amountNum: 10000,
+    deadline: "June 1, 2026",
+    deadlineDays: 73,
+    deadlineDay: 1,
+    description: "Recognizes outstanding female undergraduate students in CS, engineering, and math.",
+    tags: ["CS", "Women in Tech", "Research"],
+    link: "https://research.adobe.com/scholarship/",
+    matchScore: 80,
+    matchReason: "CS major + underrepresented group",
+  },
+  {
+    id: "gates-millennium",
+    title: "Gates Millennium Scholars Program",
+    type: "Fellowship",
+    amount: "$20,000",
+    amountNum: 20000,
+    deadline: "May 20, 2026",
+    deadlineDays: 61,
+    deadlineDay: 20,
+    description: "Full scholarship for outstanding minority students with significant financial need.",
+    tags: ["Fellowship", "Minority", "Financial Need", "Full Scholarship"],
+    link: "https://gmsp.org",
+    matchScore: 93,
+    matchReason: "Underrepresented HBCU student",
+  },
+  {
+    id: "meta-university",
+    title: "Meta University Internship",
+    type: "Internship",
+    amount: "$30/hr",
+    amountNum: 6000,
+    deadline: "April 8, 2026",
+    deadlineDays: 19,
+    deadlineDay: 8,
+    description: "Immersive 8-week internship program at Meta for sophomore-level CS students.",
+    tags: ["Meta", "Internship", "CS", "Software Engineering"],
+    link: "https://metacareers.com",
+    matchScore: 89,
+    matchReason: "CS major + Software Engineer interest",
+  },
+  {
+    id: "afcea-stem",
+    title: "AFCEA STEM Teacher Scholarship",
+    type: "Scholarship",
+    amount: "$2,500",
+    amountNum: 2500,
+    deadline: "May 5, 2026",
+    deadlineDays: 46,
+    deadlineDay: 5,
+    description: "For students pursuing STEM education degrees with an interest in teaching.",
+    tags: ["STEM", "Education", "AFCEA"],
+    link: "https://afcea.org/scholarships",
+    matchScore: 60,
+    matchReason: "STEM student",
+  },
+  {
+    id: "cra-urp",
+    title: "CRA Undergraduate Research Program",
+    type: "Fellowship",
+    amount: "$6,000",
+    amountNum: 6000,
+    deadline: "June 15, 2026",
+    deadlineDays: 87,
+    deadlineDay: 15,
+    description: "Computing Research Association grant for undergraduates conducting CS research with faculty.",
+    tags: ["Research", "CS", "Fellowship"],
+    link: "https://cra.org/cra-wp/urp/",
+    matchScore: 82,
+    matchReason: "CS major + research track",
+  },
+  {
+    id: "github-education",
+    title: "GitHub Education Hackathon",
+    type: "Hackathon",
+    amount: "$1,500",
+    amountNum: 1500,
+    deadline: "April 25, 2026",
+    deadlineDays: 36,
+    deadlineDay: 25,
+    description: "GitHub-sponsored hackathon for students building tools that improve developer workflows.",
+    tags: ["GitHub", "Open Source", "Developer Tools"],
+    link: "https://education.github.com",
+    matchScore: 81,
+    matchReason: "Software Engineer interest + open source",
+  },
+  {
+    id: "ibm-hbcu",
+    title: "IBM HBCU Scholars Program",
+    type: "Fellowship",
+    amount: "$15,000",
+    amountNum: 15000,
+    deadline: "May 25, 2026",
+    deadlineDays: 66,
+    deadlineDay: 25,
+    description: "IBM scholarship and mentoring program exclusively for students enrolled at HBCUs.",
+    tags: ["HBCU", "IBM", "Technology", "Mentorship"],
+    link: "https://www.ibm.com/impact/initiatives/ibm-hbcu-scholars",
+    matchScore: 96,
+    matchReason: "HBCU student + technology major",
+  },
+  {
+    id: "ncar-stem",
+    title: "NC A&T STEM Research Grant",
+    type: "Scholarship",
+    amount: "$3,500",
+    amountNum: 3500,
+    deadline: "April 14, 2026",
+    deadlineDays: 25,
+    deadlineDay: 14,
+    description: "Internal research grant for A&T undergraduates pursuing STEM projects with faculty.",
+    tags: ["NC A&T", "Research", "STEM", "Internal"],
+    link: "#",
+    matchScore: 97,
+    matchReason: "NC A&T student + STEM major",
+  },
+  {
+    id: "jp-morgan-hbcu",
+    title: "JPMorgan Chase HBCU Fellowship",
+    type: "Internship",
+    amount: "$28/hr",
+    amountNum: 5600,
+    deadline: "June 30, 2026",
+    deadlineDays: 102,
+    deadlineDay: 30,
+    description: "10-week summer internship at JPMorgan for HBCU students in finance, technology, or data science.",
+    tags: ["HBCU", "Finance", "JPMorgan", "Internship"],
+    link: "https://careers.jpmorgan.com",
+    matchScore: 88,
+    matchReason: "HBCU student + financial technology interest",
+  },
 ];
 
 const MONTH_NAMES = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+
+function daysUntil(deadline: string): number {
+  if (!deadline || deadline === "TBD") return 999;
+  const d = new Date(deadline);
+  if (isNaN(d.getTime())) return 999;
+  return Math.ceil((d.getTime() - Date.now()) / 86400000);
+}
+
+function computeMatchScore(opp: Opportunity, profile: Record<string, string>): { score: number; reason: string } {
+  const major = (profile.major ?? "").toLowerCase();
+  const career = (profile.careerInterest ?? "").toLowerCase();
+  const allText = [opp.title, opp.description, ...opp.tags].join(" ").toLowerCase();
+
+  let score = 50;
+  const reasons: string[] = [];
+
+  // HBCU boost — they're at NC A&T
+  if (allText.includes("hbcu") || allText.includes("historically black")) {
+    score += 20; reasons.push("HBCU student");
+  }
+  // Underrepresented / Black student boost
+  if (allText.includes("black") || allText.includes("underrepresented") || allText.includes("minority") || allText.includes("diverse")) {
+    score += 15; reasons.push("underrepresented student");
+  }
+  // Major match
+  if ((major.includes("computer") || major.includes("cs") || major.includes("software")) &&
+      (allText.includes("cs") || allText.includes("computer") || allText.includes("software") || allText.includes("technology") || allText.includes("engineering"))) {
+    score += 15; reasons.push(`${profile.major} major`);
+  }
+  // Career interest match
+  if (career.includes("software") && (allText.includes("software") || allText.includes("engineer") || allText.includes("hackathon"))) {
+    score += 10; reasons.push("Software Engineer interest");
+  }
+  if (career.includes("cybersecurity") && (allText.includes("security") || allText.includes("cyber"))) {
+    score += 10; reasons.push("Cybersecurity interest");
+  }
+  if (career.includes("cloud") && (allText.includes("cloud") || allText.includes("aws") || allText.includes("devops"))) {
+    score += 10; reasons.push("Cloud Engineer interest");
+  }
+  if (career.includes("data") && (allText.includes("data") || allText.includes("analytics") || allText.includes("ml"))) {
+    score += 10; reasons.push("Data Scientist interest");
+  }
+  if (career.includes("ai") || career.includes("ml")) {
+    if (allText.includes("ai") || allText.includes("machine learning") || allText.includes("data")) {
+      score += 10; reasons.push("AI/ML interest");
+    }
+  }
+  // STEM broad match
+  if (allText.includes("stem") && (major.includes("computer") || major.includes("math") || major.includes("engineer"))) {
+    score += 8; reasons.push("STEM major");
+  }
+
+  const reason = reasons.length > 0
+    ? reasons.join(" + ")
+    : (profile.major ? `${profile.major} major` : "Matched to your profile");
+
+  return { score: Math.min(score, 99), reason };
+}
 
 const typeColors: Record<string, string> = {
   Scholarship: "#004F9F",
@@ -147,16 +386,31 @@ function DeadlineBadge({ days }: { days: number }) {
 }
 
 export default function Opportunities() {
+  const { user } = useAuth();
   const [opportunities, setOpportunities] = useState<Opportunity[]>(MOCK_OPPORTUNITIES);
+  const [profile, setProfile] = useState<Record<string, string>>({});
   const [filter, setFilter]           = useState("All");
   const [search, setSearch]           = useState("");
   const [sortBy, setSortBy]           = useState("Best Match");
   const [amountFilter, setAmountFilter] = useState("Any Amount");
   const [statuses, setStatuses]       = useState<Record<string, Status>>({});
-  const [saved, setSaved]             = useState<Record<string, boolean>>(() => {
-    try { return JSON.parse(localStorage.getItem("scholar_saved_opps") ?? "{}"); } catch { return {}; }
-  });
+  const [saved, setSaved]             = useState<Record<string, boolean>>({});
   const [dismissed, setDismissed]     = useState<Record<string, boolean>>({});
+
+  // Load saved opportunities data from localStorage
+  useEffect(() => {
+    const k = user?.id ?? "demo";
+    const s = localStorage.getItem(`opps_saved_${k}`);
+    const d = localStorage.getItem(`opps_dismissed_${k}`);
+    const st = localStorage.getItem(`opps_statuses_${k}`);
+    const custom = localStorage.getItem(`opps_custom_${k}`);
+    if (s) setSaved(JSON.parse(s));
+    if (d) setDismissed(JSON.parse(d));
+    if (st) setStatuses(JSON.parse(st));
+    if (custom) setOpportunities([...JSON.parse(custom), ...MOCK_OPPORTUNITIES]);
+    const p = localStorage.getItem("scholar_profile");
+    if (p) setProfile(JSON.parse(p));
+  }, [user?.id]);
   const [calendarView, setCalendarView] = useState(false);
   const [calendarDate, setCalendarDate] = useState(() => {
     const now = new Date();
@@ -169,10 +423,16 @@ export default function Opportunities() {
 
   const [selectedDay, setSelectedDay] = useState<number | null>(null);
 
+  const enriched = useMemo(() => opportunities.map((o) => {
+    const liveDays = daysUntil(o.deadline);
+    const { score, reason } = computeMatchScore(o, profile);
+    return { ...o, deadlineDays: liveDays, matchScore: o.id.startsWith("custom-") ? o.matchScore : score, matchReason: o.id.startsWith("custom-") ? o.matchReason : reason };
+  }), [opportunities, profile]);
+
   const deadlineDayMap = useMemo(() => {
     setSelectedDay(null);
     const map: Record<number, Opportunity> = {};
-    opportunities.forEach((o) => {
+    enriched.forEach((o) => {
       if (!o.deadline || o.deadline === "TBD") return;
       const d = new Date(o.deadline);
       if (isNaN(d.getTime())) return;
@@ -181,7 +441,7 @@ export default function Opportunities() {
       }
     });
     return map;
-  }, [opportunities, calendarDate]);
+  }, [enriched, calendarDate]);
 
   useEffect(() => {
     const API = process.env.NEXT_PUBLIC_API_URL;
@@ -206,14 +466,18 @@ export default function Opportunities() {
           matchScore: o.matchScore ?? o.match_score ?? 80,
           matchReason: o.matchReason ?? o.match_reason ?? "Matched to your profile",
         }));
-        setOpportunities(mapped);
+        // Merge API results with mocks; API results take precedence for same IDs
+        const apiIds = new Set(mapped.map((o) => o.id));
+        const uniqueMocks = MOCK_OPPORTUNITIES.filter((o) => !apiIds.has(o.id));
+        setOpportunities([...mapped, ...uniqueMocks]);
       })
       .catch(() => {});
   }, []);
 
   const filtered = useMemo(() => {
-    return opportunities
+    return enriched
       .filter((o) => !dismissed[o.id])
+      .filter((o) => o.deadlineDays > 0) // hide already-passed deadlines
       .filter((o) => filter === "All" || (filter === "Saved" ? saved[o.id] : o.type === filter))
       .filter((o) => o.amountNum >= minAmountMap[amountFilter])
       .filter((o) =>
@@ -227,15 +491,24 @@ export default function Opportunities() {
         if (sortBy === "Amount (Highest)")   return b.amountNum - a.amountNum;
         return b.matchScore - a.matchScore;
       });
-  }, [opportunities, filter, search, sortBy, amountFilter, dismissed, saved]);
+  }, [enriched, filter, search, sortBy, amountFilter, dismissed, saved]);
 
-  const setStatus  = (id: string, val: Status) => setStatuses((p) => ({ ...p, [id]: val }));
-  const toggleSave = (id: string) => setSaved((p) => {
-    const next = { ...p, [id]: !p[id] };
-    localStorage.setItem("scholar_saved_opps", JSON.stringify(next));
+  const k = user?.id ?? "demo";
+  const setStatus  = (id: string, val: Status) => setStatuses((p) => {
+    const next = { ...p, [id]: val };
+    localStorage.setItem(`opps_statuses_${k}`, JSON.stringify(next));
     return next;
   });
-  const dismiss    = (id: string) => setDismissed((p) => ({ ...p, [id]: true }));
+  const toggleSave = (id: string) => setSaved((p) => {
+    const next = { ...p, [id]: !p[id] };
+    localStorage.setItem(`opps_saved_${k}`, JSON.stringify(next));
+    return next;
+  });
+  const dismiss    = (id: string) => setDismissed((p) => {
+    const next = { ...p, [id]: true };
+    localStorage.setItem(`opps_dismissed_${k}`, JSON.stringify(next));
+    return next;
+  });
 
   const handleAddOpportunity = (e: React.SyntheticEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -254,7 +527,12 @@ export default function Opportunities() {
       matchScore: 0,
       matchReason: "Added manually",
     };
-    setOpportunities((prev) => [newOpp, ...prev]);
+    setOpportunities((prev) => {
+      const next = [newOpp, ...prev];
+      const customOnly = next.filter((o) => o.id.startsWith("custom-"));
+      localStorage.setItem(`opps_custom_${k}`, JSON.stringify(customOnly));
+      return next;
+    });
     setAddForm({ title: "", type: "Scholarship", amount: "", deadline: "", description: "", link: "", tags: "" });
     setShowAddModal(false);
   };
@@ -500,7 +778,7 @@ export default function Opportunities() {
                       <p className="text-xs text-gray-500 mt-0.5">{opp.description}</p>
                       {opp.tags.length > 0 && (
                         <div className="flex gap-1 flex-wrap mt-2">
-                          {opp.tags.map((t) => <span key={t} className="text-xs px-2 py-0.5 rounded border" style={{ borderColor: "#004F9F", color: "#004F9F" }}>{t}</span>)}
+                          {opp.tags.map((t: string) => <span key={t} className="text-xs px-2 py-0.5 rounded border" style={{ borderColor: "#004F9F", color: "#004F9F" }}>{t}</span>)}
                         </div>
                       )}
                     </div>

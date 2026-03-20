@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
+import { useAuth } from "@/components/AuthProvider";
 
 const MOCK_SCHEDULE = [
   { code: "COMP 310", name: "Data Structures & Algorithms", days: ["M","W","F"], time: "9:00 AM", credits: 3, building: "McNair Hall 101", syllabus: "#" },
@@ -19,12 +20,7 @@ const MOCK_TRANSCRIPT = [
   { code: "COMP 250", name: "Discrete Mathematics", semester: "Spring 2025", grade: "B+", gpa: 3.3, credits: 3 },
 ];
 
-const MOCK_DROP_ADVISOR = [
-  { code: "MATH 230", name: "Calculus III", currentGrade: "D+", risk: "high", creditCost: "$1,200", advice: "Dropping would protect your GPA. Consider tutoring first.", dropDeadline: "March 28, 2026", daysUntilDrop: 11 },
-  { code: "COMP 340", name: "Computer Organization", currentGrade: "C", risk: "medium", creditCost: "$1,200", advice: "Borderline — visit office hours before deciding.", dropDeadline: "March 28, 2026", daysUntilDrop: 11 },
-];
 
-const semGPA = 3.2;
 const creditsRequired = 120;
 
 const gradePoints: Record<string, number> = { "A": 4.0, "A-": 3.7, "B+": 3.3, "B": 3.0, "B-": 2.7, "C+": 2.3, "C": 2.0, "C-": 1.7, "D+": 1.3, "D": 1.0, "F": 0 };
@@ -43,33 +39,72 @@ const courseColors = ["#004F9F", "#FFB81C", "#7c3aed", "#059669", "#dc2626"];
 const sortOptions = ["Default", "Grade", "Credits", "Term"];
 
 export default function Academics() {
+  const { user } = useAuth();
+  const hasLoaded = useRef(false);
   const [schedule, setSchedule] = useState(MOCK_SCHEDULE);
   const [transcript, setTranscript] = useState(MOCK_TRANSCRIPT);
-  const [dropAdvisor, setDropAdvisor] = useState(MOCK_DROP_ADVISOR);
+  const [calView, setCalView] = useState(false);
+  const [txSort, setTxSort] = useState("Default");
+  const [txSearch, setTxSearch] = useState("");
+  const [currentGrades, setCurrentGrades] = useState<Record<string, string>>({});
+  const [editableTranscript, setEditableTranscript] = useState<Record<string, string>>(
+    Object.fromEntries(MOCK_TRANSCRIPT.map((c) => [`${c.code}-${c.semester}`, c.grade]))
+  );
+  const [editableCredits, setEditableCredits] = useState<Record<string, number>>({});
 
-  const cumGPA = +(transcript.reduce((s, c) => s + c.gpa * c.credits, 0) / transcript.reduce((s, c) => s + c.credits, 0)).toFixed(2);
-  const creditsEarned = transcript.reduce((s, c) => s + c.credits, 0);
+  // Past courses with editable grades + credits
+  const pastPts = transcript.reduce((s, c) => {
+    const key = `${c.code}-${c.semester}`;
+    const gp = gradePoints[editableTranscript[key] ?? c.grade] ?? c.gpa;
+    const creds = editableCredits[key] ?? c.credits;
+    return s + gp * creds;
+  }, 0);
+  const pastCreds = transcript.reduce((s, c) => s + (editableCredits[`${c.code}-${c.semester}`] ?? c.credits), 0);
+
+  // Current semester courses that have grades entered
+  const gradedCurrent = schedule.filter((c) => currentGrades[c.code]);
+  const currentPts = gradedCurrent.reduce((s, c) => s + (gradePoints[currentGrades[c.code]] ?? 0) * (editableCredits[`${c.code}-current`] ?? c.credits), 0);
+  const currentCreds = gradedCurrent.reduce((s, c) => s + (editableCredits[`${c.code}-current`] ?? c.credits), 0);
+
+  const cumGPA = (pastCreds + currentCreds) > 0 ? +((pastPts + currentPts) / (pastCreds + currentCreds)).toFixed(2) : 0;
+  const creditsEarned = pastCreds + currentCreds;
+  const semGPA = (() => {
+    if (gradedCurrent.length === 0) return null;
+    return +(currentPts / currentCreds).toFixed(2);
+  })();
+
+  // Load saved grades from localStorage
+  useEffect(() => {
+    const k = user?.id ?? "demo";
+    const saved = localStorage.getItem(`academics_${k}`);
+    if (saved) {
+      const { currentGrades: cg, editableTranscript: et, editableCredits: ec } = JSON.parse(saved);
+      if (cg) setCurrentGrades(cg);
+      if (et) setEditableTranscript(et);
+      if (ec) setEditableCredits(ec);
+    }
+    hasLoaded.current = true;
+  }, [user?.id]);
+
+  // Auto-save whenever grades change (only after initial load)
+  useEffect(() => {
+    if (!hasLoaded.current) return;
+    const k = user?.id ?? "demo";
+    localStorage.setItem(`academics_${k}`, JSON.stringify({ currentGrades, editableTranscript, editableCredits }));
+  }, [currentGrades, editableTranscript, editableCredits, user?.id]);
 
   useEffect(() => {
     const API = process.env.NEXT_PUBLIC_API_URL;
-    const userId = process.env.NEXT_PUBLIC_DEMO_USER_ID;
+    const userId = user?.id ?? process.env.NEXT_PUBLIC_DEMO_USER_ID;
     if (!API || !userId) return;
     fetch(`${API}/school/academics/${userId}`)
       .then((r) => r.json())
       .then((data) => {
         if (Array.isArray(data?.schedule) && data.schedule.length > 0) setSchedule(data.schedule);
         if (Array.isArray(data?.transcript) && data.transcript.length > 0) setTranscript(data.transcript);
-        if (Array.isArray(data?.dropAdvisor)) setDropAdvisor(data.dropAdvisor);
-        else if (Array.isArray(data?.drop_advisor)) setDropAdvisor(data.drop_advisor);
       })
       .catch(() => {});
-  }, []);
-
-  const [calView, setCalView] = useState(false);
-  const [txSort, setTxSort] = useState("Default");
-  const [txSearch, setTxSearch] = useState("");
-  const [whatIfGrades, setWhatIfGrades] = useState<Record<string, string>>({});
-  const [showWhatIf, setShowWhatIf] = useState(false);
+  }, [user?.id]);
 
   const filteredTx = [...transcript]
     .filter((c) => c.name.toLowerCase().includes(txSearch.toLowerCase()) || c.code.toLowerCase().includes(txSearch.toLowerCase()))
@@ -80,12 +115,6 @@ export default function Academics() {
       return 0;
     });
 
-  const whatIfGPA = (() => {
-    const base = transcript.map((c) => ({ gpa: c.gpa, credits: c.credits }));
-    const current = schedule.map((c) => ({ credits: c.credits, gpa: gradePoints[whatIfGrades[c.code] ?? "B"] ?? 3.0 }));
-    const all = [...base, ...current];
-    return +(all.reduce((s, c) => s + c.gpa * c.credits, 0) / all.reduce((s, c) => s + c.credits, 0)).toFixed(2);
-  })();
 
   return (
     <div className="max-w-5xl mx-auto">
@@ -106,8 +135,8 @@ export default function Academics() {
         </div>
         <div className="bg-white border border-gray-100 rounded-lg shadow-sm p-5">
           <p className="text-xs text-gray-400 uppercase tracking-wide mb-1">Semester GPA</p>
-          <p className="text-3xl font-bold" style={{ color: "#FFB81C" }}>{semGPA}</p>
-          <p className="text-xs text-gray-400 mt-1">Spring 2026 (in progress)</p>
+          <p className="text-3xl font-bold" style={{ color: "#FFB81C" }}>{semGPA ?? "—"}</p>
+          <p className="text-xs text-gray-400 mt-1">{semGPA != null ? "Live from current grades" : "Enter grades in schedule"}</p>
         </div>
         <div className="bg-white border border-gray-100 rounded-lg shadow-sm p-5 sm:col-span-2">
           <p className="text-xs text-gray-400 uppercase tracking-wide mb-2">Credits Toward Graduation</p>
@@ -160,6 +189,18 @@ export default function Academics() {
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-1">
+                    <span className="text-xs text-gray-400">Grade:</span>
+                    <select
+                      value={currentGrades[c.code] ?? ""}
+                      onChange={(e) => setCurrentGrades((p) => ({ ...p, [c.code]: e.target.value }))}
+                      className="text-xs border border-gray-200 rounded px-1 py-0.5 focus:outline-none"
+                      style={{ color: currentGrades[c.code] ? gradeColor(currentGrades[c.code]) : "#9ca3af" }}
+                    >
+                      <option value="">--</option>
+                      {gradeOptions.map((g) => <option key={g}>{g}</option>)}
+                    </select>
+                  </div>
                   <a href={`https://maps.google.com/?q=${encodeURIComponent(c.building + " NCAT Greensboro")}`} target="_blank" rel="noopener noreferrer" className="text-xs text-gray-400 hover:underline">Map</a>
                   <a href={c.syllabus} className="text-xs font-semibold px-2 py-1 rounded-lg border hover:bg-gray-50" style={{ color: "#004F9F", borderColor: "#004F9F" }}>Syllabus</a>
                 </div>
@@ -169,52 +210,13 @@ export default function Academics() {
         )}
       </section>
 
-      {/* What-If GPA Simulator */}
-      <section className="bg-white border border-gray-100 rounded-lg shadow-sm p-6 mb-6">
-        <div className="flex items-center justify-between mb-1">
-          <h2 className="font-semibold text-base" style={{ color: "#004F9F" }}>What-If GPA Simulator</h2>
-          <button onClick={() => setShowWhatIf(!showWhatIf)} className="text-xs font-semibold px-3 py-1.5 rounded-lg border hover:bg-gray-50" style={{ color: "#004F9F", borderColor: "#004F9F" }}>
-            {showWhatIf ? "Hide" : "Open Simulator"}
-          </button>
-        </div>
-        <p className="text-xs text-gray-400 mb-3">See how projected grades this semester will affect your cumulative GPA.</p>
-        {showWhatIf && (
-          <div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-4">
-              {schedule.map((c) => (
-                <div key={c.code} className="flex items-center justify-between border border-gray-100 rounded-lg px-3 py-2">
-                  <div>
-                    <p className="text-sm font-medium text-gray-800">{c.code}</p>
-                    <p className="text-xs text-gray-400">{c.name}</p>
-                  </div>
-                  <select value={whatIfGrades[c.code] ?? "B"} onChange={(e) => setWhatIfGrades((p) => ({ ...p, [c.code]: e.target.value }))} className="text-sm border border-gray-200 rounded-lg px-2 py-1 focus:outline-none ml-3">
-                    {gradeOptions.map((g) => <option key={g}>{g}</option>)}
-                  </select>
-                </div>
-              ))}
-            </div>
-            <div className="flex items-center gap-4 p-4 rounded-lg" style={{ backgroundColor: "#f0f7ff" }}>
-              <div>
-                <p className="text-xs text-gray-500">Current GPA</p>
-                <p className="text-2xl font-bold" style={{ color: "#004F9F" }}>{cumGPA}</p>
-              </div>
-              <span className="text-xl text-gray-300">→</span>
-              <div>
-                <p className="text-xs text-gray-500">Projected GPA</p>
-                <p className="text-2xl font-bold" style={{ color: whatIfGPA >= cumGPA ? "#16a34a" : "#dc2626" }}>{whatIfGPA}</p>
-              </div>
-              <p className="text-xs text-gray-400 ml-2">
-                {whatIfGPA >= cumGPA ? `↑ +${(whatIfGPA - cumGPA).toFixed(2)}` : `↓ ${(cumGPA - whatIfGPA).toFixed(2)}`} change
-              </p>
-            </div>
-          </div>
-        )}
-      </section>
-
       {/* Transcript */}
       <section className="bg-white border border-gray-100 rounded-lg shadow-sm p-6 mb-6">
         <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
-          <h2 className="font-semibold text-base" style={{ color: "#004F9F" }}>Transcript</h2>
+          <div>
+            <h2 className="font-semibold text-base" style={{ color: "#004F9F" }}>Transcript</h2>
+            <p className="text-xs text-gray-400 mt-0.5">Edit grades or credits to update your GPA instantly.</p>
+          </div>
           <div className="flex items-center gap-2">
             <input type="text" placeholder="Search courses..." value={txSearch} onChange={(e) => setTxSearch(e.target.value)} className="text-sm border border-gray-200 rounded-lg px-3 py-1.5 focus:outline-none w-40" />
             <select value={txSort} onChange={(e) => setTxSort(e.target.value)} className="text-sm border border-gray-200 rounded-lg px-2 py-1.5 focus:outline-none">
@@ -222,42 +224,128 @@ export default function Academics() {
             </select>
           </div>
         </div>
+
+        {/* Current semester */}
+        <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2 mt-1">Spring 2026 — In Progress</p>
+        <div className="flex flex-col gap-2 mb-4">
+          {schedule
+            .filter((c) => c.name.toLowerCase().includes(txSearch.toLowerCase()) || c.code.toLowerCase().includes(txSearch.toLowerCase()))
+            .map((c) => {
+              const key = `${c.code}-current`;
+              const grade = currentGrades[c.code] ?? "";
+              const credits = editableCredits[key] ?? c.credits;
+              return (
+                <div key={key} className="flex items-center justify-between border border-gray-100 rounded-lg px-4 py-3 bg-blue-50/30">
+                  <div className="flex-1">
+                    <p className="text-sm font-medium text-gray-800">{c.name}</p>
+                    <div className="flex items-center gap-2 mt-0.5">
+                      <p className="text-xs text-gray-400">{c.code} · Spring 2026</p>
+                      <span className="text-xs text-gray-300">·</span>
+                      <input
+                        type="number" min="1" max="6" step="1"
+                        value={credits}
+                        onChange={(e) => setEditableCredits((p) => ({ ...p, [key]: parseInt(e.target.value) || c.credits }))}
+                        className="w-8 text-xs text-gray-500 border-b border-gray-300 focus:outline-none bg-transparent text-center"
+                        title="Edit credits"
+                      />
+                      <span className="text-xs text-gray-400">cr</span>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <select
+                      value={grade}
+                      onChange={(e) => setCurrentGrades((p) => ({ ...p, [c.code]: e.target.value }))}
+                      className="text-lg font-bold border-0 focus:outline-none bg-transparent cursor-pointer"
+                      style={{ color: grade ? gradeColor(grade) : "#9ca3af" }}
+                    >
+                      <option value="">IP</option>
+                      {gradeOptions.map((g) => <option key={g}>{g}</option>)}
+                    </select>
+                  </div>
+                </div>
+              );
+            })}
+        </div>
+
+        {/* Past semesters */}
+        <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Completed Courses</p>
         <div className="flex flex-col gap-2">
           {filteredTx.length === 0 && <p className="text-sm text-gray-400 text-center py-6">No courses found.</p>}
-          {filteredTx.map((c) => (
-            <div key={`${c.code}-${c.semester}`} className="flex items-center justify-between border border-gray-100 rounded-lg px-4 py-3">
-              <div>
-                <p className="text-sm font-medium text-gray-800">{c.name}</p>
-                <p className="text-xs text-gray-400">{c.code} · {c.semester} · {c.credits} credits</p>
+          {filteredTx.map((c) => {
+            const key = `${c.code}-${c.semester}`;
+            const grade = editableTranscript[key] ?? c.grade;
+            const credits = editableCredits[key] ?? c.credits;
+            return (
+              <div key={key} className="flex items-center justify-between border border-gray-100 rounded-lg px-4 py-3">
+                <div className="flex-1">
+                  <p className="text-sm font-medium text-gray-800">{c.name}</p>
+                  <div className="flex items-center gap-2 mt-0.5">
+                    <p className="text-xs text-gray-400">{c.code} · {c.semester}</p>
+                    <span className="text-xs text-gray-300">·</span>
+                    <input
+                      type="number" min="1" max="6" step="1"
+                      value={credits}
+                      onChange={(e) => setEditableCredits((p) => ({ ...p, [key]: parseInt(e.target.value) || c.credits }))}
+                      className="w-8 text-xs text-gray-500 border-b border-gray-300 focus:outline-none bg-transparent text-center"
+                      title="Edit credits"
+                    />
+                    <span className="text-xs text-gray-400">cr</span>
+                  </div>
+                </div>
+                <select
+                  value={grade}
+                  onChange={(e) => setEditableTranscript((p) => ({ ...p, [key]: e.target.value }))}
+                  className="text-lg font-bold border-0 focus:outline-none bg-transparent cursor-pointer"
+                  style={{ color: gradeColor(grade) }}
+                >
+                  {gradeOptions.map((g) => <option key={g}>{g}</option>)}
+                </select>
               </div>
-              <p className="text-xl font-bold" style={{ color: gradeColor(c.grade) }}>{c.grade}</p>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </section>
 
       {/* Course Drop Advisor */}
       <section className="bg-white border border-gray-100 rounded-lg shadow-sm p-6">
         <h2 className="font-semibold text-base mb-1" style={{ color: "#004F9F" }}>Course Drop Advisor</h2>
-        <p className="text-xs text-gray-400 mb-4">AI flags courses where you may want to consider dropping based on your current grade and financial cost.</p>
-        <div className="flex flex-col gap-4">
-          {dropAdvisor.map((c) => (
-            <div key={c.code} className="border rounded-lg px-5 py-4" style={{ borderColor: c.risk === "high" ? "#dc2626" : "#f59e0b" }}>
-              <div className="flex items-start justify-between mb-2">
-                <div>
-                  <p className="font-semibold text-gray-800">{c.name}</p>
-                  <p className="text-xs text-gray-400">{c.code} · Drop cost: {c.creditCost}</p>
-                </div>
-                <p className="text-xl font-bold ml-4" style={{ color: c.risk === "high" ? "#dc2626" : "#f59e0b" }}>{c.currentGrade}</p>
-              </div>
-              <p className="text-sm text-gray-600 mb-3">{c.advice}</p>
-              <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-red-50">
-                <span className="text-xs font-bold text-red-600">Drop Deadline:</span>
-                <span className="text-xs text-red-600">{c.dropDeadline} — {c.daysUntilDrop} days remaining</span>
-              </div>
+        <p className="text-xs text-gray-400 mb-4">Flags current courses where your grade has fallen below a C−. Enter your grades above to see recommendations.</p>
+        {(() => {
+          const atRisk = schedule.filter((c) => {
+            const g = currentGrades[c.code];
+            return g && (gradePoints[g] ?? 4.0) < 1.7;
+          });
+          if (atRisk.length === 0) {
+            return <p className="text-sm text-gray-400 text-center py-6">No at-risk courses. Enter your current grades in the schedule above to get recommendations.</p>;
+          }
+          return (
+            <div className="flex flex-col gap-4">
+              {atRisk.map((c) => {
+                const grade = currentGrades[c.code];
+                const gpa = gradePoints[grade] ?? 0;
+                const risk = gpa < 1.0 ? "high" : "medium";
+                return (
+                  <div key={c.code} className="border rounded-lg px-5 py-4" style={{ borderColor: risk === "high" ? "#dc2626" : "#f59e0b" }}>
+                    <div className="flex items-start justify-between mb-2">
+                      <div>
+                        <p className="font-semibold text-gray-800">{c.name}</p>
+                        <p className="text-xs text-gray-400">{c.code} · Drop cost: $1,200</p>
+                      </div>
+                      <p className="text-xl font-bold ml-4" style={{ color: risk === "high" ? "#dc2626" : "#f59e0b" }}>{grade}</p>
+                    </div>
+                    <p className="text-sm text-gray-600 mb-3">
+                      {risk === "high" ? "Dropping would protect your GPA. Consider tutoring first." : "Borderline — visit office hours before deciding."}
+                    </p>
+                    <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-red-50">
+                      <span className="text-xs font-bold text-red-600">Drop Deadline:</span>
+                      <span className="text-xs text-red-600">March 28, 2026 — 9 days remaining</span>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
-          ))}
-        </div>
+          );
+        })()}
       </section>
     </div>
   );

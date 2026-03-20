@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
+import { supabase } from "@/lib/supabase";
 
 const links = [
   { label: "Dashboard", href: "/dashboard" },
@@ -17,13 +18,15 @@ export default function Sidebar() {
   const router = useRouter();
   const isHome = pathname === "/";
   const isOnboarding = pathname === "/onboarding";
+  const isLogin = pathname === "/login";
 
-  const handleSignOut = () => {
+  const handleSignOut = async () => {
+    await supabase.auth.signOut();
     localStorage.removeItem("scholar_profile");
     router.push("/");
   };
 
-  if (isHome || isOnboarding) return null;
+  if (isHome || isOnboarding || isLogin) return null;
 
   return (
     <aside

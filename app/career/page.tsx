@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { useAuth } from "@/components/AuthProvider";
 
 const STATUS_OPTIONS = ["Wishlist", "Applied", "Interviewing", "Rejected"] as const;
 type Status = typeof STATUS_OPTIONS[number];
@@ -51,13 +52,39 @@ function DeadlineBadge({ days }: { days: number }) {
 }
 
 export default function Career() {
+  const { user } = useAuth();
+  const hasLoaded = useRef(false);
   const [internships, setInternships] = useState<Internship[]>(MOCK_INTERNSHIPS);
   const [statuses, setStatuses] = useState<Record<string, Status>>({});
   const [notes, setNotes] = useState<Record<string, string>>({});
   const [appliedDates, setAppliedDates] = useState<Record<string, string>>({});
   const [checkedTasks, setCheckedTasks] = useState<Record<string, boolean>>({});
+  const [customGoals, setCustomGoals] = useState<Record<string, string[]>>({});
+  const [goalInputs, setGoalInputs] = useState<Record<string, string>>({});
   const [sortBy, setSortBy] = useState<"default" | "deadline" | "pay">("default");
   const [userYear, setUserYear] = useState(1);
+
+  // Load saved career data from localStorage
+  useEffect(() => {
+    const k = user?.id ?? "demo";
+    const saved = localStorage.getItem(`career_${k}`);
+    if (saved) {
+      const { statuses: s, notes: n, appliedDates: d, checkedTasks: ct, customGoals: cg } = JSON.parse(saved);
+      if (s) setStatuses(s);
+      if (n) setNotes(n);
+      if (d) setAppliedDates(d);
+      if (ct) setCheckedTasks(ct);
+      if (cg) setCustomGoals(cg);
+    }
+    hasLoaded.current = true;
+  }, [user?.id]);
+
+  // Auto-save whenever career data changes (only after initial load)
+  useEffect(() => {
+    if (!hasLoaded.current) return;
+    const k = user?.id ?? "demo";
+    localStorage.setItem(`career_${k}`, JSON.stringify({ statuses, notes, appliedDates, checkedTasks, customGoals }));
+  }, [statuses, notes, appliedDates, checkedTasks, customGoals, user?.id]);
 
   useEffect(() => {
     const stored = localStorage.getItem("scholar_profile");
@@ -278,6 +305,53 @@ export default function Career() {
                         </li>
                       );
                     })}
+                    {(customGoals[step.semester] ?? []).map((goal, gi) => {
+                      const goalKey = `${step.semester}-custom-${gi}`;
+                      const done = checkedTasks[goalKey];
+                      return (
+                        <li key={goalKey} className="flex items-start gap-2">
+                          <button
+                            onClick={() => toggleTask(goalKey)}
+                            className="w-4 h-4 rounded border-2 shrink-0 mt-0.5 flex items-center justify-center"
+                            style={done ? { backgroundColor: "#FFB81C", borderColor: "#FFB81C" } : { borderColor: "#d1d5db" }}
+                          >
+                            {done && (
+                              <svg width="8" height="8" viewBox="0 0 8 8" fill="none">
+                                <path d="M1 4l2 2 4-4" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                              </svg>
+                            )}
+                          </button>
+                          <span className={`text-xs leading-snug ${done ? "line-through text-gray-400" : "text-gray-600"}`}>{goal}</span>
+                        </li>
+                      );
+                    })}
+                    {!isPast && (
+                      <li className="flex items-center gap-1 mt-1">
+                        <input
+                          type="text"
+                          placeholder="Add goal..."
+                          value={goalInputs[step.semester] ?? ""}
+                          onChange={(e) => setGoalInputs((p) => ({ ...p, [step.semester]: e.target.value }))}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter" && goalInputs[step.semester]?.trim()) {
+                              setCustomGoals((p) => ({ ...p, [step.semester]: [...(p[step.semester] ?? []), goalInputs[step.semester].trim()] }));
+                              setGoalInputs((p) => ({ ...p, [step.semester]: "" }));
+                            }
+                          }}
+                          className="flex-1 text-xs border border-gray-200 rounded px-2 py-1 focus:outline-none"
+                        />
+                        <button
+                          onClick={() => {
+                            if (goalInputs[step.semester]?.trim()) {
+                              setCustomGoals((p) => ({ ...p, [step.semester]: [...(p[step.semester] ?? []), goalInputs[step.semester].trim()] }));
+                              setGoalInputs((p) => ({ ...p, [step.semester]: "" }));
+                            }
+                          }}
+                          className="text-xs font-bold px-2 py-1 rounded"
+                          style={{ backgroundColor: "#004F9F", color: "#fff" }}
+                        >+</button>
+                      </li>
+                    )}
                   </ul>
                 </div>
               );
